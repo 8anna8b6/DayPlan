@@ -1,0 +1,55 @@
+# Android generated files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Java compiled files
+*.class
+
+# Build output
+/build/
+app/build/
+
+# Local config
+local.properties
+*.iml
+
+# Android Studio / IntelliJ
+.idea/
+*.iws
+*.ipr
+.gradle/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Gradle
+gradle-wrapper.jar
+.gradle/
+build/
+**/build/
+
+# Keystore (never commit these)
+*.jks
+*.keystore
+
+# Logs & temp
+*.log
+*.tmp
+*.bak
+*.swp
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# NDK
+obj/
+*.so
+
+# ProGuard
+proguard/

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- ── Pinks ── -->
+    <color name="primary">#DC5E88</color>
+    <color name="primary_dark">#C33A69</color>
+    <color name="primary_light">#2D1520</color>
+
+    <!-- ── Deep Rose ── -->
+    <color name="accent">#FF80AB</color>
+    <color name="accent_dark">#F06292</color>
+    <color name="accent_light">#3D1A28</color>
+
+    <!-- ── Dark Backgrounds ── -->
+    <color name="background">#0D0A0B</color>
+    <color name="surface">#180F13</color>
+    <color name="surface_variant">#211318</color>
+
+    <!-- ── Text ── -->
+    <color name="text_primary">#F5E6EC</color>
+    <color name="text_secondary">#8C5F72</color>
+
+    <!-- ── UI ── -->
+    <color name="divider">#2A1520</color>
+    <color name="error">#FF4081</color>
+    <color name="dot_white">#FFFFFF</color>
+
+</resources>

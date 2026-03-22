@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">To do list </string>
+    <string name="add_task">Add Task</string>
+    <string name="schedule">Schedule</string>
+    <string name="save_task">Save Task</string>
+    <string name="task_name_hint">What do you need to do?</string>
+    <string name="no_tasks_today">No tasks for today\nTap \'Add Task\' to get started!</string>
+    <string name="select_day">Select a day to see tasks</string>
+</resources>

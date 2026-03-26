@@ -3,20 +3,16 @@ package com.example.todolist;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.widget.*;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,23 +33,23 @@ public class MainActivity extends AppCompatActivity {
 
         dbHelper = new DatabaseHelper(this);
 
-        Calendar calendar = Calendar.getInstance();
-        SimpleDateFormat sdfKey = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-        todayDate = sdfKey.format(calendar.getTime());
+        Calendar cal = Calendar.getInstance();
+        todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.getTime());
 
         initViews();
-        displayDate(calendar);
+        displayDate(cal);
         loadTasks();
 
         btnAddTask.setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, AddTaskActivity.class);
-            intent.putExtra("default_date", todayDate);
-            startActivity(intent);
+            Intent i = new Intent(this, AddTaskActivity.class);
+            i.putExtra("default_date", todayDate);
+            startActivity(i);
         });
 
-        btnSchedule.setOnClickListener(v -> {
-            startActivity(new Intent(MainActivity.this, CalendarActivity.class));
-        });
+        btnSchedule.setOnClickListener(v ->
+                startActivity(new Intent(this, CalendarActivity.class)));
+
+        enableDragReorder();
     }
 
     @Override
@@ -63,54 +59,93 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        tvDayName     = findViewById(R.id.tvDayName);
-        tvFullDate    = findViewById(R.id.tvFullDate);
-        tvTaskCount   = findViewById(R.id.tvTaskCount);
-        tvEmpty       = findViewById(R.id.tvEmpty);
+        tvDayName   = findViewById(R.id.tvDayName);
+        tvFullDate  = findViewById(R.id.tvFullDate);
+        tvTaskCount = findViewById(R.id.tvTaskCount);
+        tvEmpty     = findViewById(R.id.tvEmpty);
         recyclerTasks = findViewById(R.id.recyclerTasks);
-        btnAddTask    = findViewById(R.id.btnAddTask);
-        btnSchedule   = findViewById(R.id.btnSchedule);
+        btnAddTask  = findViewById(R.id.btnAddTask);
+        btnSchedule = findViewById(R.id.btnSchedule);
         recyclerTasks.setLayoutManager(new LinearLayoutManager(this));
     }
 
-    private void displayDate(Calendar calendar) {
-        SimpleDateFormat dayFormat  = new SimpleDateFormat("EEEE", Locale.getDefault());
-        SimpleDateFormat dateFormat = new SimpleDateFormat("MMMM d, yyyy", Locale.getDefault());
-        tvDayName.setText(dayFormat.format(calendar.getTime()).toUpperCase());
-        tvFullDate.setText(dateFormat.format(calendar.getTime()));
+    private void displayDate(Calendar cal) {
+        tvDayName.setText(
+                new SimpleDateFormat("EEEE", Locale.getDefault()).format(cal.getTime()).toUpperCase());
+        tvFullDate.setText(
+                new SimpleDateFormat("MMMM d, yyyy", Locale.getDefault()).format(cal.getTime()));
     }
 
     private void loadTasks() {
         taskList = dbHelper.getTasksByDate(todayDate);
+
         if (taskAdapter == null) {
-            taskAdapter = new TaskAdapter(taskList, dbHelper, this::confirmDelete);
+            taskAdapter = new TaskAdapter(
+                    taskList, dbHelper,
+                    this::confirmDelete,
+                    new TaskAdapter.OnTaskClickListener() {
+                        @Override public void onTaskClick(Task task) { /* no-op on main */ }
+                        @Override public void onTaskLongClick(Task task) { openEdit(task); }
+                        @Override public void onTaskDoneChanged(Task task, boolean isDone) {}
+                    }
+            );
             recyclerTasks.setAdapter(taskAdapter);
         } else {
-            taskAdapter.updateList(taskList);
+            taskAdapter.updateTasks(taskList);
         }
+
         if (taskList.isEmpty()) {
             recyclerTasks.setVisibility(View.GONE);
             tvEmpty.setVisibility(View.VISIBLE);
-            tvTaskCount.setText("No tasks scheduled for today");
+            tvTaskCount.setText("No tasks today");
         } else {
             recyclerTasks.setVisibility(View.VISIBLE);
             tvEmpty.setVisibility(View.GONE);
-            int count = taskList.size();
-            tvTaskCount.setText(count + (count == 1 ? " task" : " tasks") + " for today");
+            tvTaskCount.setText(taskList.size() + " tasks today");
         }
     }
 
-    private void confirmDelete(Task task, int position) {
+    private void openEdit(Task task) {
+        Intent i = new Intent(this, AddTaskActivity.class);
+        i.putExtra("task_id",     task.getId());
+        i.putExtra("task_name",   task.getName());
+        i.putExtra("task_date",   task.getDate());
+        i.putExtra("task_repeat", task.getRepeat());
+        startActivity(i);
+    }
+
+    private void confirmDelete(Task task) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Task")
                 .setMessage("Delete \"" + task.getName() + "\"?")
-                .setPositiveButton("Delete", (dialog, which) -> {
+                .setPositiveButton("Delete", (d, w) -> {
                     dbHelper.deleteTask(task.getId());
-                    taskAdapter.removeItem(position);
+                    if (taskAdapter != null) taskAdapter.removeItem(task);
                     loadTasks();
-                    Toast.makeText(this, "Task deleted", Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void enableDragReorder() {
+        ItemTouchHelper helper = new ItemTouchHelper(
+                new ItemTouchHelper.SimpleCallback(
+                        ItemTouchHelper.UP | ItemTouchHelper.DOWN, 0) {
+
+                    @Override
+                    public boolean onMove(RecyclerView rv,
+                                          RecyclerView.ViewHolder vh,
+                                          RecyclerView.ViewHolder target) {
+                        int from = vh.getAdapterPosition();
+                        int to   = target.getAdapterPosition();
+                        Collections.swap(taskList, from, to);
+                        taskAdapter.notifyItemMoved(from, to);
+                        dbHelper.updateTaskOrder(taskList);
+                        return true;
+                    }
+
+                    @Override public void onSwiped(RecyclerView.ViewHolder vh, int dir) {}
+                });
+        helper.attachToRecyclerView(recyclerTasks);
     }
 }

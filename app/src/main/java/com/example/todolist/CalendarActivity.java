@@ -6,7 +6,6 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -35,9 +34,9 @@ public class CalendarActivity extends AppCompatActivity {
     private int selectedDay = -1;
     private String selectedDateStr = "";
 
-    private List<Integer> dayList = new ArrayList<>();
-    private List<String> datesWithTasks = new ArrayList<>();
-    private List<Task> dayTasks = new ArrayList<>();
+    private List<Integer> dayList         = new ArrayList<>();
+    private List<String>  datesWithTasks  = new ArrayList<>();
+    private List<Task>    dayTasks        = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,32 +49,19 @@ public class CalendarActivity extends AppCompatActivity {
         initViews();
         setupCalendar();
 
-
         recyclerDayTasks.setVisibility(View.GONE);
         tvDayEmpty.setVisibility(View.GONE);
         tvSelectedDateLabel.setText("Tap a day to see tasks");
 
         btnPrevMonth.setOnClickListener(v -> {
             displayedMonth.add(Calendar.MONTH, -1);
-            selectedDay = -1;
-            selectedDateStr = "";
-            tvSelectedDateLabel.setText("Tap a day to see tasks");
-            dayTasks.clear();
-            if (dayTaskAdapter != null) dayTaskAdapter.updateList(dayTasks);
-            recyclerDayTasks.setVisibility(View.GONE);
-            tvDayEmpty.setVisibility(View.GONE);
+            resetDaySelection();
             setupCalendar();
         });
 
         btnNextMonth.setOnClickListener(v -> {
             displayedMonth.add(Calendar.MONTH, 1);
-            selectedDay = -1;
-            selectedDateStr = "";
-            tvSelectedDateLabel.setText("Tap a day to see tasks");
-            dayTasks.clear();
-            if (dayTaskAdapter != null) dayTaskAdapter.updateList(dayTasks);
-            recyclerDayTasks.setVisibility(View.GONE);
-            tvDayEmpty.setVisibility(View.GONE);
+            resetDaySelection();
             setupCalendar();
         });
 
@@ -98,6 +84,16 @@ public class CalendarActivity extends AppCompatActivity {
         if (!selectedDateStr.isEmpty()) loadDayTasks();
     }
 
+    private void resetDaySelection() {
+        selectedDay = -1;
+        selectedDateStr = "";
+        tvSelectedDateLabel.setText("Tap a day to see tasks");
+        dayTasks.clear();
+        if (dayTaskAdapter != null) dayTaskAdapter.updateTasks(dayTasks);
+        recyclerDayTasks.setVisibility(View.GONE);
+        tvDayEmpty.setVisibility(View.GONE);
+    }
+
     private void initViews() {
         tvMonthYear         = findViewById(R.id.tvMonthYear);
         tvSelectedDateLabel = findViewById(R.id.tvSelectedDateLabel);
@@ -107,6 +103,7 @@ public class CalendarActivity extends AppCompatActivity {
         recyclerCalendar    = findViewById(R.id.recyclerCalendar);
         recyclerDayTasks    = findViewById(R.id.recyclerDayTasks);
         btnAddTask          = findViewById(R.id.btnAddTask);
+
         recyclerCalendar.setLayoutManager(new GridLayoutManager(this, 7));
         recyclerDayTasks.setLayoutManager(new LinearLayoutManager(this));
     }
@@ -115,8 +112,9 @@ public class CalendarActivity extends AppCompatActivity {
         int year  = displayedMonth.get(Calendar.YEAR);
         int month = displayedMonth.get(Calendar.MONTH) + 1;
 
-        SimpleDateFormat fmt = new SimpleDateFormat("MMMM yyyy", Locale.getDefault());
-        tvMonthYear.setText(fmt.format(displayedMonth.getTime()));
+        tvMonthYear.setText(
+                new SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+                        .format(displayedMonth.getTime()));
 
         datesWithTasks = dbHelper.getDatesWithTasksInMonth(year, month);
 
@@ -152,7 +150,7 @@ public class CalendarActivity extends AppCompatActivity {
         if (selectedDateStr.isEmpty()) return;
         dayTasks = dbHelper.getTasksByDate(selectedDateStr);
 
-        // Update header label
+        // Header label
         try {
             SimpleDateFormat inFmt  = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
             SimpleDateFormat outFmt = new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault());
@@ -161,15 +159,33 @@ public class CalendarActivity extends AppCompatActivity {
             tvSelectedDateLabel.setText("Tasks for " + selectedDateStr);
         }
 
-        // Bind adapter
         if (dayTaskAdapter == null) {
-            dayTaskAdapter = new TaskAdapter(dayTasks, dbHelper, this::confirmDelete);
+            dayTaskAdapter = new TaskAdapter(
+                    dayTasks, dbHelper,
+                    this::confirmDelete,
+                    new TaskAdapter.OnTaskClickListener() {
+                        @Override
+                        public void onTaskClick(Task task) {
+                            // Short tap — no-op (long-press opens edit)
+                        }
+
+                        @Override
+                        public void onTaskLongClick(Task task) {
+                            // Long-press → open edit
+                            openEdit(task);
+                        }
+
+                        @Override
+                        public void onTaskDoneChanged(Task task, boolean isDone) {
+                            // Checkbox handled inside adapter; nothing else needed here
+                        }
+                    }
+            );
             recyclerDayTasks.setAdapter(dayTaskAdapter);
         } else {
-            dayTaskAdapter.updateList(dayTasks);
+            dayTaskAdapter.updateTasks(dayTasks);
         }
 
-        // Show list or empty message
         if (dayTasks.isEmpty()) {
             recyclerDayTasks.setVisibility(View.GONE);
             tvDayEmpty.setVisibility(View.VISIBLE);
@@ -179,19 +195,29 @@ public class CalendarActivity extends AppCompatActivity {
         }
     }
 
-    private void confirmDelete(Task task, int position) {
+    /** Launch AddTaskActivity pre-filled for editing the given task. */
+    private void openEdit(Task task) {
+        Intent i = new Intent(this, AddTaskActivity.class);
+        i.putExtra("task_id",     task.getId());
+        i.putExtra("task_name",   task.getName());
+        i.putExtra("task_date",   task.getDate());
+        i.putExtra("task_repeat", task.getRepeat());
+        startActivity(i);
+    }
+
+    private void confirmDelete(Task task) {
         new AlertDialog.Builder(this)
                 .setTitle("Delete Task")
-                .setMessage("Delete \"" + task.getName() + "\"?")
-                .setPositiveButton("Delete", (dialog, which) -> {
+                .setMessage("Are you sure you want to delete this task?")
+                .setPositiveButton("Yes", (dialog, which) -> {
                     dbHelper.deleteTask(task.getId());
-                    dayTaskAdapter.removeItem(position);
-                    int year  = displayedMonth.get(Calendar.YEAR);
-                    int month = displayedMonth.get(Calendar.MONTH) + 1;
-                    datesWithTasks = dbHelper.getDatesWithTasksInMonth(year, month);
-                    if (calendarAdapter != null) calendarAdapter.updateDatesWithTasks(datesWithTasks);
-                    loadDayTasks();
-                    Toast.makeText(this, "Task deleted", Toast.LENGTH_SHORT).show();
+                    if (dayTaskAdapter != null) dayTaskAdapter.removeItem(task);
+                    // Refresh dot indicators on calendar
+                    datesWithTasks = dbHelper.getDatesWithTasksInMonth(
+                            displayedMonth.get(Calendar.YEAR),
+                            displayedMonth.get(Calendar.MONTH) + 1);
+                    if (calendarAdapter != null)
+                        calendarAdapter.updateDatesWithTasks(datesWithTasks);
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
